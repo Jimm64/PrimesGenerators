@@ -7,8 +7,10 @@
 class PrimesGenerator
 {
     public:
-
         PrimesGenerator();
+
+        PrimesGenerator(
+                const std::map<uint64_t, uint64_t> &known_prime_multiples_map);
 
         /** Get next prime value. */
         uint64_t next();

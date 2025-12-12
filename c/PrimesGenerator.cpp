@@ -5,6 +5,13 @@ PrimesGenerator::PrimesGenerator():
 {
 }
 
+PrimesGenerator::PrimesGenerator(
+        const std::map<uint64_t, uint64_t> &known_prime_multiples_map)
+{
+    _next_possible_prime = known_prime_multiples_map.rbegin()->first + 2;
+    _prime_multiples_map = known_prime_multiples_map;
+}
+
 uint64_t PrimesGenerator::next()
 {
     /*
