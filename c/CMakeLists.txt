@@ -5,6 +5,9 @@ project(primes)
 add_library(
         primesgenerator
         PrimesGenerator.cpp)
+add_library(
+        primesrepository
+        PrimesRepository.cpp)
 
 add_executable(
         test_primes test_primes.cpp)
@@ -14,4 +17,4 @@ target_link_libraries(
 add_executable(
         save_primes save_primes.cpp)
 target_link_libraries(
-        save_primes primesgenerator)
+        save_primes primesgenerator primesrepository odbc)
