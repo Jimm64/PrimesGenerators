@@ -29,12 +29,25 @@ class PrimesRepositoryImpl: public PrimesRepository
 
     protected:
 
+        /** ODBC environment handle. */
         SQLHENV _sql_env;
+
+        /** ODBC database connection handle. */
         SQLHDBC _sqldb_connection;
+
+        /** ODBC statement handle, used for directly-specified statements. */
         SQLHSTMT _sql_statement;
+
+        /** ODBC statement handle, prepared to insert records of prime numbers
+         * and their largest tested multiple. */
         SQLHSTMT _sql_insert_prime_statement;
+
+        /** ODBC statement handle, prepared to update records of prime numbers
+         * and their largest tested multiple. */
         SQLHSTMT _sql_update_prime_statement;
-        SQLHDESC _sql_desc;
+
+        /** Error text set by methods in this class, retrieved via
+         * ::getLastError. */
         std::string _last_error;
 };
 

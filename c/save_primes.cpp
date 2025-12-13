@@ -1,8 +1,14 @@
+/**
+ * @file save_primes.cpp
+ *
+ * @brief Finds prime numbers and saves them to a database. */
+
 #include "PrimesGenerator.h"
 #include "PrimesRepository.h"
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 volatile bool keep_running = true;
 
@@ -23,6 +29,17 @@ int main(int argc, char **argv)
 {
     int rc;
     std::map<uint64_t, uint64_t> prime_multiples_map;
+    const char *odbc_connection_string;
+
+    if (argc == 1)
+        odbc_connection_string = "DRIVER=SQLITE3;Database=./primes.sqlite3;";
+    else if (argc == 2)
+        odbc_connection_string = argv[1];
+    else
+    {
+        printf("Usage: $s [ODBC connection string]\n");
+        return 1;
+    }
 
     /* Set signal handler. */
     signal(SIGINT, handle_signal);
@@ -30,8 +47,7 @@ int main(int argc, char **argv)
 
     PrimesRepository *primes_repository = PrimesRepository::create();
 
-    if (primes_repository->connect(
-                "DRIVER=SQLITE3;Database=./primes.sqlite3;") != 0)
+    if (primes_repository->connect(odbc_connection_string) != 0)
     {
         printf(
                 "Repository connect failed: %s\n",
@@ -72,5 +88,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    delete primes_repository;
     return 0;
 }
