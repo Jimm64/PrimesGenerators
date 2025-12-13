@@ -28,7 +28,6 @@ void handle_signal(int signal)
 int main(int argc, char **argv)
 {
     int rc;
-    std::map<uint64_t, uint64_t> prime_multiples_map;
     const char *odbc_connection_string;
 
     if (argc == 1)
@@ -55,7 +54,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (primes_repository->readSavedPrimeMultiples(prime_multiples_map) != 0)
+    if (primes_repository->readSavedPrimeMultiples() != 0)
     {
         printf(
                 "Failed to read saved primes from repository: %s\n",
@@ -63,7 +62,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    PrimesGenerator primes_generator(prime_multiples_map);
+    PrimesGenerator primes_generator(
+            primes_repository->getPrimeMultiplesMap());
 
     while (keep_running)
     {

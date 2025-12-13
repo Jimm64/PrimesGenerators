@@ -69,8 +69,15 @@ class PrimesRepository
          *
          * @return 0 on success, -1 on error (call ::getLastError to get error
          * text) */
-        virtual int readSavedPrimeMultiples(
-                std::map<uint64_t, uint64_t> &prime_multiples_map) = 0;
+        virtual int readSavedPrimeMultiples() = 0;
+
+        /**
+         * @brief Return the current state of existing primes and their largest
+         * tested multiples.
+         *
+         * @return Map of existing primes and multiples.
+         */
+        virtual const std::map<uint64_t, uint64_t> getPrimeMultiplesMap() = 0;
 
         /**
          * @brief Get text of the last error to occur when calling one of this
@@ -86,12 +93,6 @@ class PrimesRepository
         static PrimesRepository *create();
 
         virtual ~PrimesRepository();
-
-    protected:
-
-        /** Mapping of known primes to the largest multiple that has been used
-         * by e.g. ::PrimesGenerator to find new prime numbers. */
-        std::map<uint64_t, uint64_t> _last_prime_multiples_map;
 };
 
 #endif

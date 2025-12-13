@@ -24,10 +24,11 @@ class PrimesRepositoryImpl: public PrimesRepository
         int savePrimeMultiplesMap(
                 const std::map<uint64_t, uint64_t> &prime_multiples_map);
 
-        int readSavedPrimeMultiples(
-                std::map<uint64_t, uint64_t> &prime_multiples_map);
+        int readSavedPrimeMultiples();
 
         const char *getLastError();
+
+        const std::map<uint64_t, uint64_t> getPrimeMultiplesMap();
 
     protected:
 
@@ -68,6 +69,10 @@ class PrimesRepositoryImpl: public PrimesRepository
         /** Error text set by methods in this class, retrieved via
          * ::getLastError. */
         std::string _last_error;
+
+        /** Mapping of known primes to the largest multiple that has been used
+         * by e.g. ::PrimesGenerator to find new prime numbers. */
+        std::map<uint64_t, uint64_t> _last_prime_multiples_map;
 };
 
 PrimesRepositoryImpl::PrimesRepositoryImpl()
@@ -263,9 +268,6 @@ int PrimesRepositoryImpl::disconnect()
                 "SQLDisconnect() failed: ");
         return -1;
     }
-    else
-        printf("DEBUG -- Disconnect succeeded.\n");
-
 
     cleanupOdbcEnvironment();
     return 0;
@@ -323,13 +325,13 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             SQL_C_UBIGINT,
             SQL_BIGINT,
             0, 0,
-            &prime_value,
+            &prime_multiple,
             0, 0)))
     {
-        buildLastError(
-                _sql_statement, SQL_HANDLE_STMT,
-                "SQLBindParameter(prime value) failed: ");
-        return -1;
+            buildLastError(
+                    _sql_statement, SQL_HANDLE_STMT,
+                    "SQLBindParameter(prime multiple) failed: ");
+            return -1;
     }
 
     if (!SQL_SUCCEEDED(SQLBindParameter(
@@ -339,14 +341,15 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             SQL_C_UBIGINT,
             SQL_BIGINT,
             0, 0,
-            &prime_multiple,
+            &prime_value,
             0, 0)))
     {
-            buildLastError(
-                    _sql_statement, SQL_HANDLE_STMT,
-                    "SQLBindParameter(prime multiple) failed: ");
-            return -1;
+        buildLastError(
+                _sql_statement, SQL_HANDLE_STMT,
+                "SQLBindParameter(prime value) failed: ");
+        return -1;
     }
+
 
     for (auto map_iter: prime_multiples_map)
     {
@@ -370,7 +373,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
         {
             prime_value = map_iter.first;
             prime_multiple = map_iter.second;
-            if (SQLExecute(_sql_update_prime_statement) != SQL_NO_DATA)
+            if (SQLExecute(_sql_update_prime_statement) != SQL_SUCCESS)
             {
                 buildLastError(
                         _sql_update_prime_statement, SQL_HANDLE_STMT,
@@ -387,8 +390,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
 }
 
 
-int PrimesRepositoryImpl::readSavedPrimeMultiples(
-        std::map<uint64_t, uint64_t> &prime_multiples_map)
+int PrimesRepositoryImpl::readSavedPrimeMultiples()
 {
     SQLHSTMT select_statement;
     SQLRETURN rc;
@@ -483,9 +485,14 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples(
     if (!success)
         return -1;
 
-    prime_multiples_map = new_prime_multiples_map;
+    _last_prime_multiples_map = new_prime_multiples_map;
 
     return 0;
+}
+
+const std::map<uint64_t, uint64_t> PrimesRepositoryImpl::getPrimeMultiplesMap()
+{
+    return _last_prime_multiples_map;
 }
 
 const char *PrimesRepositoryImpl::getLastError()
