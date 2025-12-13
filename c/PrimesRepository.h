@@ -85,6 +85,8 @@ class PrimesRepository
 
         static PrimesRepository *create();
 
+        virtual ~PrimesRepository();
+
     protected:
 
         /** Mapping of known primes to the largest multiple that has been used

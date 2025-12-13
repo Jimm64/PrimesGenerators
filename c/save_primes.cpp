@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     if (primes_repository->disconnect() != 0)
     {
         printf(
-                "Repository disconnect failed:\n",
+                "Repository disconnect failed: %s\n",
                 primes_repository->getLastError());
         return 1;
     }

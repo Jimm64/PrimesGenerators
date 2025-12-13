@@ -5,11 +5,17 @@
 #include <sql.h>
 #include <sqlext.h>
 
+PrimesRepository::~PrimesRepository()
+{
+}
+
 class PrimesRepositoryImpl: public PrimesRepository
 {
     public:
 
         PrimesRepositoryImpl();
+
+        ~PrimesRepositoryImpl();
 
         int connect(const char *odbc_connect_string);
 
@@ -23,11 +29,24 @@ class PrimesRepositoryImpl: public PrimesRepository
 
         const char *getLastError();
 
+    protected:
+
+        /**
+         * @brief Construct eror text for ::getLastError based on the given
+         * ODBC handle.
+         *
+         * @param handle ODBC handle
+         * @param handle_type Type of the ODBC handle
+         * @param error_prefix An initial string of text to provide.
+         */
         void buildLastError(
                 SQLHANDLE handle, SQLSMALLINT handle_type,
                 const char *error_prefix);
 
-    protected:
+        /**
+         * @brief Cleanup handles representing the ODBC environment.
+         */
+        void cleanupOdbcEnvironment();
 
         /** ODBC environment handle. */
         SQLHENV _sql_env;
@@ -53,6 +72,16 @@ class PrimesRepositoryImpl: public PrimesRepository
 
 PrimesRepositoryImpl::PrimesRepositoryImpl()
 {
+    _sql_env = NULL;
+    _sqldb_connection = NULL;
+    _sql_statement = NULL;
+    _sql_insert_prime_statement = NULL;
+    _sql_update_prime_statement = NULL;
+}
+
+PrimesRepositoryImpl::~PrimesRepositoryImpl()
+{
+    cleanupOdbcEnvironment();
 }
 
 int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
@@ -60,6 +89,12 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
     bool success = false;
 
     _last_error.clear();
+
+    if (_sqldb_connection != NULL)
+    {
+        _last_error = "Already connected.";
+        return -1;
+    }
 
     do
     {
@@ -168,19 +203,71 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
     } while (false);
 
     if (!success)
+    {
+        cleanupOdbcEnvironment();
         return -1;
+    }
 
     return 0;
+}
+
+void PrimesRepositoryImpl::cleanupOdbcEnvironment()
+{
+    _last_error.clear();
+
+    if (_sql_update_prime_statement != NULL)
+    {
+        SQLFreeHandle(SQL_HANDLE_STMT, _sql_update_prime_statement);
+        _sql_update_prime_statement = NULL;
+    }
+
+    if (_sql_insert_prime_statement)
+    {
+        SQLFreeHandle(SQL_HANDLE_STMT, _sql_insert_prime_statement);
+        _sql_insert_prime_statement = NULL;
+    }
+
+    if (_sql_statement != NULL)
+    {
+        SQLFreeHandle(SQL_HANDLE_STMT, _sql_statement);
+        _sql_statement = NULL;
+    }
+
+    if (_sqldb_connection != NULL)
+    {
+        SQLFreeHandle(SQL_HANDLE_DBC, _sqldb_connection);
+        _sqldb_connection = NULL;
+    }
+
+    if (_sql_env != NULL)
+    {
+        SQLFreeHandle(SQL_HANDLE_ENV, _sql_env);
+        _sql_env = NULL;
+    }
 }
 
 int PrimesRepositoryImpl::disconnect()
 {
     _last_error.clear();
-    SQLFreeHandle(SQL_HANDLE_ENV, _sql_env);
-    SQLFreeHandle(SQL_HANDLE_ENV, _sqldb_connection);
-    SQLFreeHandle(SQL_HANDLE_ENV, _sql_statement);
-    SQLFreeHandle(SQL_HANDLE_ENV, _sql_insert_prime_statement);
-    SQLFreeHandle(SQL_HANDLE_ENV, _sql_update_prime_statement);
+
+    if (_sqldb_connection == NULL)
+    {
+        _last_error = "Not connected to a database.";
+        return -1;
+    }
+
+    if (!SQL_SUCCEEDED(SQLDisconnect(_sqldb_connection)))
+    {
+        buildLastError(
+                _sqldb_connection, SQL_HANDLE_DBC,
+                "SQLDisconnect() failed: ");
+        return -1;
+    }
+    else
+        printf("DEBUG -- Disconnect succeeded.\n");
+
+
+    cleanupOdbcEnvironment();
     return 0;
 }
 
@@ -308,6 +395,8 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples(
     std::map<uint64_t, uint64_t> new_prime_multiples_map;
     uint64_t prime_value, prime_multiple;
     bool success = false;
+
+    _last_error.clear();
 
     if (!SQL_SUCCEEDED(SQLAllocHandle(
                     SQL_HANDLE_STMT, _sqldb_connection,
