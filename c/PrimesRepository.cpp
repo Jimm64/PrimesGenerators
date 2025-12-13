@@ -24,6 +24,8 @@ class PrimesRepositoryImpl: public PrimesRepository
         int savePrimeMultiplesMap(
                 const std::map<uint64_t, uint64_t> &prime_multiples_map);
 
+        int commit();
+
         int readSavedPrimeMultiples();
 
         const char *getLastError();
@@ -396,8 +398,23 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
                         "SQLExecute(update prime multiple) failed: ");
                 return -1;
             }
-            continue;
         }
+    }
+
+
+    _last_prime_multiples_map = prime_multiples_map;
+
+    return 0;
+}
+
+int PrimesRepositoryImpl::commit()
+{
+    _last_error.clear();
+
+    if (_sqldb_connection == NULL)
+    {
+        _last_error = "Not connected to a database.";
+        return -1;
     }
 
     if (!SQL_SUCCEEDED(SQLEndTran(
@@ -408,8 +425,6 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
                 "SQLEndTran() failed: ");
         return -1;
     }
-
-    _last_prime_multiples_map = prime_multiples_map;
 
     return 0;
 }

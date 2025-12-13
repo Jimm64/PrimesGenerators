@@ -52,6 +52,8 @@ class PrimesRepository
          * multiples used to find new prime numbers. The ::PrimesGenerator
          * provides such a map.
          *
+         * The save is not committed until ::commit is called.
+         *
          * @param prime_multiples_map The mapping of primes to multiples
          *
          * @return 0 on success, -1 on error (call ::getLastError to get error
@@ -59,6 +61,13 @@ class PrimesRepository
         virtual int savePrimeMultiplesMap(
                 const std::map<uint64_t, uint64_t> &prime_multiples_map) = 0;
 
+        /**
+         * @brief Commit any current transactions (e.g. primes saved by
+         * ::savePrimeMultiplesMap) to the database.
+         *
+         * @return 0 on success, -1 on error (call ::getLastError to get error
+         * text) */
+        virtual int commit() = 0;
 
         /**
          * @brief Read a mapping of prime values to their largest multiples
