@@ -15,6 +15,9 @@ class PrimesGenerator
         /** Get next prime value. */
         uint64_t next();
 
+        const std::map<uint64_t, uint64_t> getPrimeMultiplesMap();
+
+
     protected:
 
         /** Saves known prime values and a multiple thereof. */

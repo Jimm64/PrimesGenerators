@@ -1,15 +1,20 @@
 #include "PrimesGenerator.h"
 
-PrimesGenerator::PrimesGenerator():
-    _next_possible_prime(2)
+PrimesGenerator::PrimesGenerator()
 {
+    _next_possible_prime = 2;
 }
 
 PrimesGenerator::PrimesGenerator(
         const std::map<uint64_t, uint64_t> &known_prime_multiples_map)
 {
-    _next_possible_prime = known_prime_multiples_map.rbegin()->first + 2;
-    _prime_multiples_map = known_prime_multiples_map;
+    if (known_prime_multiples_map.size() > 0)
+    {
+        _next_possible_prime = known_prime_multiples_map.rbegin()->first + 2;
+        _prime_multiples_map = known_prime_multiples_map;
+    }
+    else
+        _next_possible_prime = 2;
 }
 
 uint64_t PrimesGenerator::next()
@@ -77,4 +82,9 @@ uint64_t PrimesGenerator::next()
         else
             _next_possible_prime += 2;
     }
+}
+
+const std::map<uint64_t, uint64_t> PrimesGenerator::getPrimeMultiplesMap()
+{
+    return _prime_multiples_map;
 }

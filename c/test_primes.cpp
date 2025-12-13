@@ -20,6 +20,21 @@ TEST_F(PrimesGeneratorTests, Generator_FindsFirstValidPrimes)
         ASSERT_EQ(primes_generator.next(), expected_value);
 }
 
+TEST_F(PrimesGeneratorTests, GivenEmptyMap_Generator_FindsFirstValidPrimes)
+{
+    std::map<uint64_t, uint64_t> saved_primes_map;
+
+    std::vector<uint64_t> first_primes_list = {
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31
+    };
+
+    PrimesGenerator primes_generator(saved_primes_map);
+
+
+    for (int expected_value: first_primes_list)
+        ASSERT_EQ(primes_generator.next(), expected_value);
+}
+
 TEST_F(
         PrimesGeneratorTests, GivenMapOfKnownPrimes_Generator_FindsNextPrimes)
 {
