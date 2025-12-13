@@ -124,6 +124,16 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
             break;
         }
 
+        if (!SQL_SUCCEEDED(SQLSetConnectAttr(
+                        _sqldb_connection, SQL_ATTR_AUTOCOMMIT,
+                        (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER)))
+        {
+            buildLastError(
+                    _sql_env, SQL_HANDLE_ENV,
+                    "SQLSetConnectAttr(autocommit off) failed: ");
+            break;
+        }
+
 
         if (!SQL_SUCCEEDED(SQLDriverConnect(
                         _sqldb_connection, NULL,
@@ -282,6 +292,12 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
 
     _last_error.clear();
 
+    if (_sqldb_connection == NULL)
+    {
+        _last_error = "Not connected to a database.";
+        return -1;
+    }
+
     /* Bind parameters for insert statemetnt. */
 
     if (!SQL_SUCCEEDED(SQLBindParameter(
@@ -373,7 +389,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
         {
             prime_value = map_iter.first;
             prime_multiple = map_iter.second;
-            if (SQLExecute(_sql_update_prime_statement) != SQL_SUCCESS)
+            if (!SQL_SUCCEEDED(SQLExecute(_sql_update_prime_statement)))
             {
                 buildLastError(
                         _sql_update_prime_statement, SQL_HANDLE_STMT,
@@ -382,6 +398,15 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             }
             continue;
         }
+    }
+
+    if (!SQL_SUCCEEDED(SQLEndTran(
+                    SQL_HANDLE_DBC, _sqldb_connection, SQL_COMMIT)))
+    {
+        buildLastError(
+                _sqldb_connection, SQL_HANDLE_DBC,
+                "SQLEndTran() failed: ");
+        return -1;
     }
 
     _last_prime_multiples_map = prime_multiples_map;
