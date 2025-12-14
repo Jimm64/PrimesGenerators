@@ -42,7 +42,7 @@ class PrimesRepositoryImpl: public PrimesRepository
          * @param handle_type Type of the ODBC handle
          * @param error_prefix An initial string of text to provide.
          */
-        void buildLastError(
+        void buildLastErrorForSqlDiagnostics(
                 SQLHANDLE handle, SQLSMALLINT handle_type,
                 const char *error_prefix);
 
@@ -105,7 +105,7 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
 
     do
     {
-        /* Create database environment and connection. */
+        /* Create database environment and connection handles. */
 
         if (!SQL_SUCCEEDED(SQLAllocHandle(
                         SQL_HANDLE_ENV, SQL_NULL_HANDLE, &_sql_env)))
@@ -120,7 +120,7 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
         if (!SQL_SUCCEEDED(SQLAllocHandle(
                         SQL_HANDLE_DBC, _sql_env, &_sqldb_connection)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sql_env, SQL_HANDLE_ENV,
                     "SQLAllocHandle(connection) failed: ");
             break;
@@ -130,11 +130,13 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         _sqldb_connection, SQL_ATTR_AUTOCOMMIT,
                         (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER)))
         {
-            buildLastError(
-                    _sql_env, SQL_HANDLE_ENV,
+            buildLastErrorForSqlDiagnostics(
+                    _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLSetConnectAttr(autocommit off) failed: ");
             break;
         }
+
+        /* Connect to the database. */
 
 
         if (!SQL_SUCCEEDED(SQLDriverConnect(
@@ -143,17 +145,19 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         SQL_NTS,
                         NULL, 0, NULL, SQL_DRIVER_COMPLETE)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLDriverConnect failed: ");
             break;
         }
 
+        /* Allocate and prepare database statement handles. */
+
         if (!SQL_SUCCEEDED(SQLAllocHandle(
                         SQL_HANDLE_STMT, _sqldb_connection,
                         &_sql_statement)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLAllocHandle(statement) failed: ");
             break;
@@ -163,7 +167,7 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         SQL_HANDLE_STMT, _sqldb_connection,
                         &_sql_insert_prime_statement)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLAllocHandle(insert primes statement) failed: ");
             break;
@@ -173,8 +177,8 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         _sql_insert_prime_statement,
                         (SQLCHAR*)"INSERT INTO Primes VALUES(?, ?)", SQL_NTS)))
         {
-            buildLastError(
-                    _sqldb_connection, SQL_HANDLE_DBC,
+            buildLastErrorForSqlDiagnostics(
+                    _sql_insert_prime_statement, SQL_HANDLE_STMT,
                     "SQLPrepare of insert statement failed: ");
             break;
         }
@@ -183,7 +187,7 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         SQL_HANDLE_STMT, _sqldb_connection,
                         &_sql_update_prime_statement)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLAllocHandle(update primes statement) failed: ");
             break;
@@ -195,8 +199,8 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         "WHERE value = ?;",
                         SQL_NTS)))
         {
-            buildLastError(
-                    _sqldb_connection, SQL_HANDLE_DBC,
+            buildLastErrorForSqlDiagnostics(
+                    _sql_update_prime_statement, SQL_HANDLE_STMT,
                     "SQLPrepare of update statement failed: ");
             break;
         }
@@ -208,12 +212,11 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
                         "last_multiple INTEGER);",
                         SQL_NTS)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sql_statement, SQL_HANDLE_STMT,
                     "Primes table creation failed: ");
             break;
         }
-
 
         success = true;
 
@@ -230,8 +233,6 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
 
 void PrimesRepositoryImpl::cleanupOdbcEnvironment()
 {
-    _last_error.clear();
-
     if (_sql_update_prime_statement != NULL)
     {
         SQLFreeHandle(SQL_HANDLE_STMT, _sql_update_prime_statement);
@@ -275,7 +276,7 @@ int PrimesRepositoryImpl::disconnect()
 
     if (!SQL_SUCCEEDED(SQLDisconnect(_sqldb_connection)))
     {
-        buildLastError(
+        buildLastErrorForSqlDiagnostics(
                 _sqldb_connection, SQL_HANDLE_DBC,
                 "SQLDisconnect() failed: ");
         return -1;
@@ -300,7 +301,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
         return -1;
     }
 
-    /* Bind parameters for insert statemetnt. */
+    /* Bind parameters for insert statement (prime value, multiple). */
 
     if (!SQL_SUCCEEDED(SQLBindParameter(
             _sql_insert_prime_statement,
@@ -312,7 +313,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             &prime_value,
             0, 0)))
     {
-        buildLastError(
+        buildLastErrorForSqlDiagnostics(
                 _sql_statement, SQL_HANDLE_STMT,
                 "SQLBindParameter(prime value) failed: ");
         return -1;
@@ -328,13 +329,13 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             &prime_multiple,
             0, 0)))
     {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sql_statement, SQL_HANDLE_STMT,
                     "SQLBindParameter(prime multiple) failed: ");
             return -1;
     }
 
-    /* Bind parameters for update statemetnt. */
+    /* Bind parameters for update statement (multiple, prime value). */
 
     if (!SQL_SUCCEEDED(SQLBindParameter(
             _sql_update_prime_statement,
@@ -346,7 +347,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             &prime_multiple,
             0, 0)))
     {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sql_statement, SQL_HANDLE_STMT,
                     "SQLBindParameter(prime multiple) failed: ");
             return -1;
@@ -362,7 +363,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             &prime_value,
             0, 0)))
     {
-        buildLastError(
+        buildLastErrorForSqlDiagnostics(
                 _sql_statement, SQL_HANDLE_STMT,
                 "SQLBindParameter(prime value) failed: ");
         return -1;
@@ -381,7 +382,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             if (!SQL_SUCCEEDED(
                         SQLExecute(_sql_insert_prime_statement)))
             {
-                buildLastError(
+                buildLastErrorForSqlDiagnostics(
                         _sql_insert_prime_statement, SQL_HANDLE_STMT,
                         "SQLExecute(insert prime multiple) failed: ");
                 return -1;
@@ -393,7 +394,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             prime_multiple = map_iter.second;
             if (!SQL_SUCCEEDED(SQLExecute(_sql_update_prime_statement)))
             {
-                buildLastError(
+                buildLastErrorForSqlDiagnostics(
                         _sql_update_prime_statement, SQL_HANDLE_STMT,
                         "SQLExecute(update prime multiple) failed: ");
                 return -1;
@@ -420,7 +421,7 @@ int PrimesRepositoryImpl::commit()
     if (!SQL_SUCCEEDED(SQLEndTran(
                     SQL_HANDLE_DBC, _sqldb_connection, SQL_COMMIT)))
     {
-        buildLastError(
+        buildLastErrorForSqlDiagnostics(
                 _sqldb_connection, SQL_HANDLE_DBC,
                 "SQLEndTran() failed: ");
         return -1;
@@ -444,7 +445,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
                     SQL_HANDLE_STMT, _sqldb_connection,
                     &select_statement)))
     {
-        buildLastError(
+        buildLastErrorForSqlDiagnostics(
                 _sqldb_connection, SQL_HANDLE_DBC,
                 "SQLAllocHandle(select statement) failed: ");
         return -1;
@@ -457,7 +458,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
                         (SQLCHAR*)"SELECT value, last_multiple"
                         " FROM Primes;", SQL_NTS)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     _sqldb_connection, SQL_HANDLE_DBC,
                     "SQLPrepare of select statement failed: ");
             break;
@@ -470,7 +471,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
                         &prime_value,
                         0, 0)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     select_statement, SQL_HANDLE_STMT,
                     "SQLBindCol(prime value) failed: ");
             break;
@@ -483,7 +484,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
                         &prime_multiple,
                         0, 0)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     select_statement, SQL_HANDLE_STMT,
                     "SQLBindCol(last prime multiple) failed: ");
             break;
@@ -491,7 +492,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
 
         if (!SQL_SUCCEEDED(SQLExecute(select_statement)))
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     select_statement, SQL_HANDLE_STMT,
                     "SQLExecute(select prime values) failed: ");
             break;
@@ -510,7 +511,7 @@ int PrimesRepositoryImpl::readSavedPrimeMultiples()
 
         if (rc != SQL_NO_DATA_FOUND)
         {
-            buildLastError(
+            buildLastErrorForSqlDiagnostics(
                     select_statement, SQL_HANDLE_STMT,
                     "SQLFetch(select prime values) failed: ");
             break;
@@ -545,7 +546,7 @@ PrimesRepository *PrimesRepository::create()
     return new PrimesRepositoryImpl;
 }
 
-void PrimesRepositoryImpl::buildLastError(
+void PrimesRepositoryImpl::buildLastErrorForSqlDiagnostics(
         SQLHANDLE handle, SQLSMALLINT handle_type,
         const char *error_prefix)
 {
