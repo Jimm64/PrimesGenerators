@@ -374,6 +374,9 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
 
         if (last_prime_multiple == last_prime_multiples_map.end())
         {
+            /* This prime value does not currently exist in the table, so
+             * insert it. */
+
             prime_value = map_iter.first;
             prime_multiple = map_iter.second;
             if (!SQL_SUCCEEDED(
@@ -387,6 +390,9 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
         }
         else if (last_prime_multiple->second != map_iter.second)
         {
+            /* This prime value exists in the table but its last-tested
+             * multiple has changed. Update it. */
+
             prime_value = map_iter.first;
             prime_multiple = map_iter.second;
             if (!SQL_SUCCEEDED(SQLExecute(_sql_update_prime_statement)))
