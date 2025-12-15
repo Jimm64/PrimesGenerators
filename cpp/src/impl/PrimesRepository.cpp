@@ -57,9 +57,6 @@ class PrimesRepositoryImpl: public PrimesRepository
         /** ODBC database connection handle. */
         SQLHDBC _sqldb_connection;
 
-        /** ODBC statement handle, used for directly-specified statements. */
-        SQLHSTMT _sql_statement;
-
         /** ODBC statement handle, prepared to insert records of prime numbers
          * and their largest tested multiple. */
         SQLHSTMT _sql_insert_prime_statement;
@@ -81,7 +78,6 @@ PrimesRepositoryImpl::PrimesRepositoryImpl()
 {
     _sql_env = NULL;
     _sqldb_connection = NULL;
-    _sql_statement = NULL;
     _sql_insert_prime_statement = NULL;
     _sql_update_prime_statement = NULL;
 }
@@ -93,6 +89,7 @@ PrimesRepositoryImpl::~PrimesRepositoryImpl()
 
 int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
 {
+    SQLHSTMT create_table_statement;
     bool success = false;
 
     _last_error.clear();
@@ -151,17 +148,8 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
             break;
         }
 
-        /* Allocate and prepare database statement handles. */
-
-        if (!SQL_SUCCEEDED(SQLAllocHandle(
-                        SQL_HANDLE_STMT, _sqldb_connection,
-                        &_sql_statement)))
-        {
-            buildLastErrorForSqlDiagnostics(
-                    _sqldb_connection, SQL_HANDLE_DBC,
-                    "SQLAllocHandle(statement) failed: ");
-            break;
-        }
+        /* Allocate and prepare reusable database statement handles for
+         * inserting and updating prime-multiple mapping entries. */
 
         if (!SQL_SUCCEEDED(SQLAllocHandle(
                         SQL_HANDLE_STMT, _sqldb_connection,
@@ -205,18 +193,33 @@ int PrimesRepositoryImpl::connect(const char *odbc_connect_string)
             break;
         }
 
+        /* Create the primes table if it doesn't already exist. */
+
+        if (!SQL_SUCCEEDED(SQLAllocHandle(
+                        SQL_HANDLE_STMT, _sqldb_connection,
+                        &create_table_statement)))
+        {
+            buildLastErrorForSqlDiagnostics(
+                    _sqldb_connection, SQL_HANDLE_DBC,
+                    "SQLAllocHandle(statement) failed: ");
+            break;
+        }
+
         if (!SQL_SUCCEEDED(SQLExecDirect(
-                        _sql_statement,
+                        create_table_statement,
                         (SQLCHAR*)"CREATE TABLE IF NOT EXISTS Primes("
                         "value INTEGER,"
                         "last_multiple INTEGER);",
                         SQL_NTS)))
         {
             buildLastErrorForSqlDiagnostics(
-                    _sql_statement, SQL_HANDLE_STMT,
+                    create_table_statement, SQL_HANDLE_STMT,
                     "Primes table creation failed: ");
+            SQLFreeHandle(SQL_HANDLE_STMT, create_table_statement);
             break;
         }
+
+        SQLFreeHandle(SQL_HANDLE_STMT, create_table_statement);
 
         success = true;
 
@@ -243,12 +246,6 @@ void PrimesRepositoryImpl::cleanupOdbcEnvironment()
     {
         SQLFreeHandle(SQL_HANDLE_STMT, _sql_insert_prime_statement);
         _sql_insert_prime_statement = NULL;
-    }
-
-    if (_sql_statement != NULL)
-    {
-        SQLFreeHandle(SQL_HANDLE_STMT, _sql_statement);
-        _sql_statement = NULL;
     }
 
     if (_sqldb_connection != NULL)
@@ -314,7 +311,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             0, 0)))
     {
         buildLastErrorForSqlDiagnostics(
-                _sql_statement, SQL_HANDLE_STMT,
+                _sql_insert_prime_statement, SQL_HANDLE_STMT,
                 "SQLBindParameter(prime value) failed: ");
         return -1;
     }
@@ -330,7 +327,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             0, 0)))
     {
             buildLastErrorForSqlDiagnostics(
-                    _sql_statement, SQL_HANDLE_STMT,
+                    _sql_insert_prime_statement, SQL_HANDLE_STMT,
                     "SQLBindParameter(prime multiple) failed: ");
             return -1;
     }
@@ -348,7 +345,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             0, 0)))
     {
             buildLastErrorForSqlDiagnostics(
-                    _sql_statement, SQL_HANDLE_STMT,
+                    _sql_update_prime_statement, SQL_HANDLE_STMT,
                     "SQLBindParameter(prime multiple) failed: ");
             return -1;
     }
@@ -364,7 +361,7 @@ int PrimesRepositoryImpl::savePrimeMultiplesMap(
             0, 0)))
     {
         buildLastErrorForSqlDiagnostics(
-                _sql_statement, SQL_HANDLE_STMT,
+                _sql_update_prime_statement, SQL_HANDLE_STMT,
                 "SQLBindParameter(prime value) failed: ");
         return -1;
     }
